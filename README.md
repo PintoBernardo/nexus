@@ -112,7 +112,7 @@ All settings are stored in `nexus.db` and managed through the `/api/config` endp
 | `server.host` | `0.0.0.0` | Bind address |
 | `server.port` | `8000` | HTTP listen port |
 | `freepbx.enabled` | `true` | Enable FreePBX integration |
-| `freepbx.api_url` | `http://192.168.1.160:83` | FreePBX API URL |
+| `freepbx.api_url` | `http://127.0.0.1` | FreePBX API URL |
 | `ami.enabled` | `true` | Enable AMI integration |
 | `ami.host` | `127.0.0.1` | AMI server host |
 | `ami.port` | `5038` | AMI server port |
