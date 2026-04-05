@@ -1,0 +1,15 @@
+meta {
+  name: Connect to AMI
+  type: http
+  seq: 9
+}
+
+post {
+  url: http://127.0.0.1:8000/api/ami/connect
+  body: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 10000
+}

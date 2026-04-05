@@ -1,0 +1,7 @@
+nexus.db
+nexus.db-shm
+nexus.db-wal
+node_modules/
+.old/
+.claude/
+.env

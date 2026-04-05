@@ -1,0 +1,15 @@
+meta {
+  name: Refresh FreePBX Token
+  type: http
+  seq: 8
+}
+
+get {
+  url: http://127.0.0.1:8000/api/freepbx/token
+  body: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 10000
+}

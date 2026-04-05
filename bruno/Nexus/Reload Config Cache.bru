@@ -1,0 +1,15 @@
+meta {
+  name: Reload Config Cache
+  type: http
+  seq: 6
+}
+
+post {
+  url: http://127.0.0.1:8000/api/config/reload
+  body: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

@@ -1,0 +1,18 @@
+{
+  "name": "nexus",
+  "version": "1.0.0",
+  "description": "Nexus Unified Communications — Enterprise IP Phones backend",
+  "main": "api/src/app.js",
+  "scripts": {
+    "start": "node api/src/app.js",
+    "dev": "node --watch api/src/app.js",
+    "seed": "node api/src/utils/seed.js"
+  },
+  "keywords": ["cisco", "asterisk", "freepbx", "ami", "sip"],
+  "author": "Bernardo Pinto",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "better-sqlite3": "^12.8.0"
+  }
+}
