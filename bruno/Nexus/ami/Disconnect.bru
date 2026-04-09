@@ -1,0 +1,20 @@
+meta {
+  name: Disconnect
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://127.0.0.1:8000/api/ami/disconnect
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

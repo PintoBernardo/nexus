@@ -1,0 +1,24 @@
+meta {
+  name: Disable PIN
+  type: http
+  seq: 9
+}
+
+post {
+  url: http://127.0.0.1:8000/api/services/directory/personal/pin
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "admin",
+    "pin": "5678",
+    "action": "disable"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

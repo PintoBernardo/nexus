@@ -1,0 +1,26 @@
+meta {
+  name: Enable PIN
+  type: http
+  seq: 8
+}
+
+post {
+  url: http://127.0.0.1:8000/api/services/directory/personal/pin
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "admin",
+    "pin": "1234",
+    "action": "set",
+    "new_pin": "5678",
+    "confirm": "5678"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

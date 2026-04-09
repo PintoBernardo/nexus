@@ -1,0 +1,20 @@
+meta {
+  name: Dismiss by ID
+  type: http
+  seq: 6
+}
+
+delete {
+  url: http://127.0.0.1:8000/api/admin/system/notifications/:id
+  body: none
+  auth: none
+}
+
+pathParams {
+  id: 1
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

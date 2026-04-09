@@ -53,4 +53,22 @@ router.get("/token", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/freepbx/ringgroups
+ * Returns the list of ring groups from FreePBX.
+ */
+router.get("/ringgroups", async (req, res) => {
+  if (!cfg.getBool("freepbx.enabled")) {
+    return res.status(503).json({ error: "FreePBX integration is disabled", hint: "Set freepbx.enabled = true in config" });
+  }
+
+  try {
+    const ringgroups = await fpbx.getRingGroups();
+    res.json({ ok: true, count: ringgroups.length, ringgroups });
+  } catch (err) {
+    console.error("[freepbx] Error fetching ring groups:", err.message);
+    res.status(500).json({ error: "Failed to fetch ring groups", detail: err.message });
+  }
+});
+
 module.exports = router;

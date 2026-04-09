@@ -1,0 +1,31 @@
+meta {
+  name: Update Device
+  type: http
+  seq: 4
+}
+
+put {
+  url: http://127.0.0.1:8000/api/devices/:id
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+pathParams {
+  id: 1
+}
+
+body:json {
+  {
+    "status": "unregistered",
+    "ip_address": "192.168.1.101"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

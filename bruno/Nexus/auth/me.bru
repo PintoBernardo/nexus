@@ -1,0 +1,20 @@
+meta {
+  name: Me
+  type: http
+  seq: 4
+}
+
+get {
+  url: http://127.0.0.1:8000/api/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

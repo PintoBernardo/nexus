@@ -1,0 +1,24 @@
+meta {
+  name: Suspend User
+  type: http
+  seq: 13
+}
+
+post {
+  url: http://127.0.0.1:8000/api/admin/auth/users/:id/suspend
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+vars:path {
+  id: 1
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

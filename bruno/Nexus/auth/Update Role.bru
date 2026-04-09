@@ -1,0 +1,31 @@
+meta {
+  name: Update Role
+  type: http
+  seq: 7
+}
+
+put {
+  url: http://127.0.0.1:8000/api/admin/auth/roles/:name
+  body: json
+  auth: bearer
+}
+
+body:json {
+  {
+    "label": "Senior Manager",
+    "description": "Updated description"
+  }
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}
+
+vars:path {
+  name: manager
+}

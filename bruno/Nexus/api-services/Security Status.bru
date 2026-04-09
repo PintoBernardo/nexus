@@ -1,0 +1,16 @@
+meta {
+  name: Security Status
+  type: http
+  seq: 7
+}
+
+get {
+  url: http://127.0.0.1:8000/api/services/directory/personal/security?username=admin&pin=1234
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

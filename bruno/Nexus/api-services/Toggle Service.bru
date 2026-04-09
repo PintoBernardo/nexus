@@ -1,0 +1,30 @@
+meta {
+  name: Toggle Service
+  type: http
+  seq: 3
+}
+
+put {
+  url: http://127.0.0.1:8000/api/services/status/:name
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "enabled": false
+  }
+}
+
+vars:path {
+  name: directory
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

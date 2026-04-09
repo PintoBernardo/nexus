@@ -1,0 +1,16 @@
+meta {
+  name: Corporate Results (XML)
+  type: http
+  seq: 6
+}
+
+get {
+  url: http://127.0.0.1:8001/services/directory/corporate?firstname=John&lastname=&number=
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 10000
+}

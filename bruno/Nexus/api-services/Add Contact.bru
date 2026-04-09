@@ -1,0 +1,26 @@
+meta {
+  name: Add Contact
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://127.0.0.1:8000/api/services/directory/personal/contact
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "admin",
+    "pin": "1234",
+    "action": "add",
+    "name": "John Doe",
+    "number": "1234"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

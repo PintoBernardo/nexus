@@ -24,14 +24,11 @@ router.get("/health", (req, res) => {
     uptime: process.uptime(),
     services: {
       freepbx: {
-        enabled: cfg.getBool("freepbx.enabled"),
-        url: cfg.get("freepbx.api_url") || null
+        enabled: cfg.getBool("freepbx.enabled")
       },
       ami: {
         enabled: cfg.getBool("ami.enabled"),
-        connected: ami.isConnected(),
-        host: cfg.get("ami.host"),
-        port: cfg.getNumber("ami.port")
+        connected: ami.isConnected()
       }
     }
   });

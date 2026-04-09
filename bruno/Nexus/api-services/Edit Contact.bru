@@ -1,0 +1,27 @@
+meta {
+  name: Edit Contact
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://127.0.0.1:8000/api/services/directory/personal/contact
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "admin",
+    "pin": "1234",
+    "action": "edit",
+    "idx": 0,
+    "name": "Jane Smith",
+    "number": "5678"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

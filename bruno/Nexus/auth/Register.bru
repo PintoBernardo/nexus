@@ -1,0 +1,32 @@
+meta {
+  name: Register
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://127.0.0.1:8000/api/admin/auth/register
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "username": "jdoe",
+    "email": "jdoe@example.com",
+    "password": "secure123",
+    "firstName": "John",
+    "lastName": "Doe",
+    "phone": "+1-555-0100",
+    "role": "manager"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

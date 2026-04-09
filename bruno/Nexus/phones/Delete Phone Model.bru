@@ -1,0 +1,24 @@
+meta {
+  name: Delete Phone Model
+  type: http
+  seq: 5
+}
+
+delete {
+  url: http://127.0.0.1:8000/api/phones/:model
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+pathParams {
+  model: CP-7940G
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

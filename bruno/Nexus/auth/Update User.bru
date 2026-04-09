@@ -1,0 +1,31 @@
+meta {
+  name: Update User
+  type: http
+  seq: 11
+}
+
+put {
+  url: http://127.0.0.1:8000/api/admin/auth/users/:id
+  body: json
+  auth: bearer
+}
+
+body:json {
+  {
+    "role": "manager",
+    "suspended": false
+  }
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+vars:path {
+  id: 1
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

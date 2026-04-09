@@ -2,74 +2,118 @@
  * app.js
  * ------
  * Nexus Unified Communications — Express backend entry point.
- *
- * Router structure:
- *   /api/system/*    — health, status
- *   /api/config/*    — read/write all database settings
- *   /api/freepbx/*   — FreePBX GraphQL API proxy
- *   /api/ami/*       — Asterisk Manager Interface commands
- *
- * To run:
- *   Production:  npm start
- *   Development:  npm run dev  (auto-restart on file changes)
- *
- * To seed default settings:
- *   npm run seed
  */
 
 const express = require("express");
 const path = require("path");
-
-// ─── Config ───────────────────────────────────────────────────────────────────
 const cfg = require("./config/configStore");
+const db = require("./config/db");
+const { requiresPerm } = require("./middleware/auth");
 
-// ─── Create Express app ───────────────────────────────────────────────────────
 const app = express();
 
-// Parse JSON request bodies
+// ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json());
-
-// Parse URL-encoded request bodies
 app.use(express.urlencoded({ extended: false }));
-
-// Request logging middleware
 app.use(require("./middleware/logger"));
 
-// ─── Routers ──────────────────────────────────────────────────────────────────
-
-// System — health, status
-const systemRouter = require("./routers/system/health");
-app.use("/api/system", systemRouter);
-
-// Config — read/write all settings
-const configRouter = require("./routers/config/index");
-app.use("/api/config", configRouter);
-
-// FreePBX — extensions, OAuth token
-const freepbxRouter = require("./routers/freepbx/index");
-app.use("/api/freepbx", freepbxRouter);
-
-// AMI — Asterisk Manager Interface
-const amiRouter = require("./routers/ami/index");
-app.use("/api/ami", amiRouter);
-
-// ─── Static file serving ──────────────────────────────────────────────────────
-
-// Serve frontend static files
-app.use(express.static(path.join(__dirname, "..", "..", "frontend", "public")));
-
-// ─── Global error handler ─────────────────────────────────────────────────────
-
-app.use((err, req, res, next) => {
-  console.error(`[error] ${err.stack}`);
-  res.status(err.status || 500).json({
-    error: "Internal server error",
-    message: err.message
-  });
+// ─── Root ─────────────────────────────────────────────────────────────────────
+app.get("/", (req, res) => {
+  res.json({ message: "Hello World, this is Nexus." });
 });
 
-// ─── Start server ─────────────────────────────────────────────────────────────
+// ─── Public Routes ───────────────────────────────────────────────────────────
 
+// Health check — /api/health
+const healthRouter = require("./routers/system/health");
+app.use("/api", healthRouter);
+
+// Auth — login at /api/login, verify at /api/auth/verify
+const authRouter = require("./routers/auth/index");
+app.use("/api/auth", authRouter);
+
+// Login shortcut at /api/login
+const auth = require("./services/auth");
+app.post("/api/login", async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: "Missing username or password" });
+  }
+  try {
+    const result = await auth.login(username, password);
+    res.json({ ok: true, token: result.token, profile: result.profile });
+  } catch (err) {
+    res.status(401).json({ error: err.message });
+  }
+});
+
+// ─── Authenticated - Any User ────────────────────────────────────────────────
+const meRouter = require("./routers/me/index");
+app.use("/api/me", meRouter);
+
+// ─── Protected Routes ────────────────────────────────────────────────────────
+
+// Services status — GET requires services:read, PUT requires services:write
+const servicesStatusRouter = require("./routers/services/status");
+app.use("/api/services/status", requiresPerm("services:read"), servicesStatusRouter);
+
+// Directory Service — PIN-based auth (no JWT)
+const servicesDirRouter = require("./routers/services/directory");
+app.use("/api/services/directory", requiresPerm("services:read"), servicesDirRouter);
+
+// Extensions
+const extensionsRouter = require("./routers/extensions/index");
+app.use("/api/extensions", requiresPerm("extensions:read"), extensionsRouter);
+
+// Devices
+const devicesRouter = require("./routers/devices/index");
+app.use("/api/devices", requiresPerm("devices:read"), devicesRouter);
+
+// Phones
+const phonesRouter = require("./routers/phones/index");
+app.use("/api/phones", requiresPerm("devices:read"), phonesRouter);
+
+// Ring Groups
+const ringgroupsRouter = require("./routers/ringgroups/index");
+app.use("/api/ringgroups", requiresPerm("ringgroups:read"), ringgroupsRouter);
+
+// FreePBX
+const freepbxRouter = require("./routers/freepbx/index");
+app.use("/api/freepbx", requiresPerm("freepbx:read"), freepbxRouter);
+
+// AMI
+const amiRouter = require("./routers/ami/index");
+app.use("/api/ami", requiresPerm("ami:read"), amiRouter);
+
+// ─── Admin Routes ─────────────────────────────────────────────────────────────
+
+// Admin - System (notifications)
+const notifyRouter = require("./routers/notify/index");
+app.use("/api/admin/system/notifications", notifyRouter);
+
+// Admin - System (config)
+const configRouter = require("./routers/config/index");
+app.use("/api/admin/system/config", configRouter);
+
+// Admin - System (database)
+const dbRouter = require("./routers/db/index");
+app.use("/api/admin/system/database", dbRouter);
+
+// Admin - Auth & Users (users, roles, sessions)
+const adminAuthRouter = require("./routers/admin/auth");
+app.use("/api/admin/auth", adminAuthRouter);
+
+// ─── Static files ─────────────────────────────────────────────────────────────
+app.use(express.static(path.join(__dirname, "..", "..", "frontend", "public")));
+
+// ─── Error handler ────────────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  if (res.headersSent) return;
+  console.error(`[error] ${err.stack}`);
+  res.status(err.status || 500).json({ error: "Internal server error", message: err.message });
+});
+
+// ─── Start ────────────────────────────────────────────────────────────────────
 const HOST = cfg.get("server.host", "0.0.0.0");
 const PORT = cfg.getNumber("server.port", 8000);
 

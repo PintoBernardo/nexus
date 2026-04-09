@@ -1,0 +1,16 @@
+meta {
+  name: Add Contact Form (XML)
+  type: http
+  seq: 4
+}
+
+get {
+  url: http://127.0.0.1:8001/services/directory/personal/add?username=admin&pin=1234
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

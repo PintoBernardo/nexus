@@ -1,0 +1,16 @@
+meta {
+  name: Menu Config
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://127.0.0.1:8000/api/services/directory/menu
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

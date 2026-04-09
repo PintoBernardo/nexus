@@ -1,0 +1,24 @@
+meta {
+  name: Delete Extension
+  type: http
+  seq: 5
+}
+
+delete {
+  url: http://127.0.0.1:8000/api/extensions/:id
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+pathParams {
+  id: 1
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

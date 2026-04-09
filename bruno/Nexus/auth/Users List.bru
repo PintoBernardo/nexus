@@ -1,0 +1,20 @@
+meta {
+  name: Users List
+  type: http
+  seq: 9
+}
+
+get {
+  url: http://127.0.0.1:8000/api/admin/auth/users
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

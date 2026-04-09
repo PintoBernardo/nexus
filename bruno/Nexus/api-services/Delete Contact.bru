@@ -1,0 +1,25 @@
+meta {
+  name: Delete Contact
+  type: http
+  seq: 5
+}
+
+post {
+  url: http://127.0.0.1:8000/api/services/directory/personal/contact
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "admin",
+    "pin": "1234",
+    "action": "delete",
+    "idx": 0
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

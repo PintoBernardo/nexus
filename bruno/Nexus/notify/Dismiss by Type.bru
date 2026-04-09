@@ -1,0 +1,16 @@
+meta {
+  name: Dismiss by Type
+  type: http
+  seq: 5
+}
+
+delete {
+  url: http://127.0.0.1:8000/api/admin/system/notifications?type=error
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

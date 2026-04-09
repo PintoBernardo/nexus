@@ -1,0 +1,25 @@
+meta {
+  name: Add Member
+  type: http
+  seq: 6
+}
+
+post {
+  url: http://127.0.0.1:8000/api/ringgroups/:id/members/:extension
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}
+
+vars:path {
+  id: 1
+  extension: "101"
+}

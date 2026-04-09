@@ -1,0 +1,31 @@
+meta {
+  name: Update Extension
+  type: http
+  seq: 4
+}
+
+put {
+  url: http://127.0.0.1:8000/api/extensions/:id
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+pathParams {
+  id: 1
+}
+
+body:json {
+  {
+    "display_name": "Updated Name",
+    "secret": "newsecret"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

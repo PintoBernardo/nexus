@@ -5,3 +5,5 @@ node_modules/
 .old/
 .claude/
 .env
+.dev/
+.env/

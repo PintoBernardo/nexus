@@ -1,0 +1,30 @@
+meta {
+  name: Update Phone Model
+  type: http
+  seq: 4
+}
+
+put {
+  url: http://127.0.0.1:8000/api/phones/:model
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+pathParams {
+  model: CP-7940G
+}
+
+body:json {
+  {
+    "notes": "Updated notes"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

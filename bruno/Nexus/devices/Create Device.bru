@@ -1,0 +1,32 @@
+meta {
+  name: Create Device
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://127.0.0.1:8000/api/devices
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "user_id": 1,
+    "mac_address": "00:11:22:33:44:55",
+    "model": "CP-7940G",
+    "ip_address": "192.168.1.100",
+    "hostname": "SEP001122334455",
+    "status": "registered",
+    "last_registered": null
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

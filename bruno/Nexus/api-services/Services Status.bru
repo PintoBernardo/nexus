@@ -1,0 +1,16 @@
+meta {
+  name: Services Status
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://127.0.0.1:8000/api/services/status
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

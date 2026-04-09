@@ -1,0 +1,28 @@
+meta {
+  name: Create Role
+  type: http
+  seq: 6
+}
+
+post {
+  url: http://127.0.0.1:8000/api/admin/auth/roles
+  body: json
+  auth: bearer
+}
+
+body:json {
+  {
+    "name": "manager",
+    "label": "Manager",
+    "description": "Department manager"
+  }
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

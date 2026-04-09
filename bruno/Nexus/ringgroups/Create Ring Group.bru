@@ -1,0 +1,29 @@
+meta {
+  name: Create Ring Group
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://127.0.0.1:8000/api/ringgroups
+  body: json
+  auth: bearer
+}
+
+body:json {
+  {
+    "name": "Sales Team",
+    "strategy": "ringall",
+    "description": "Sales department ring group",
+    "members": ["101", "102"]
+  }
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

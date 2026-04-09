@@ -1,0 +1,20 @@
+meta {
+  name: Get by Name
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://127.0.0.1:8000/api/services/status/:name
+  body: none
+  auth: none
+}
+
+pathParams {
+  name: directory
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

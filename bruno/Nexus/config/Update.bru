@@ -1,0 +1,29 @@
+meta {
+  name: Update
+  type: http
+  seq: 3
+}
+
+put {
+  url: http://127.0.0.1:8000/api/admin/system/config/server.port
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "value": "9000",
+    "group": "server",
+    "label": "HTTP listen port",
+    "type": "number"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

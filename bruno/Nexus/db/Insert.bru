@@ -1,0 +1,41 @@
+meta {
+  name: Insert
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://127.0.0.1:8000/api/admin/system/database/phone_models
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "model": "CP-7841",
+    "manufacturer": "Cisco",
+    "screen_resolution": "396x158",
+    "screen_color": "256-color",
+    "num_lines": 10,
+    "num_softkeys": 4,
+    "num_line_keys": 10,
+    "expansion_module": "none",
+    "has_wifi": 0,
+    "has_poe": 1,
+    "has_bluetooth": 0,
+    "usb_ports": 0,
+    "network_ports": 2,
+    "form_factor": "desk",
+    "protocol": "sccp",
+    "notes": "Entry-level IP phone"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

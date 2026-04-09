@@ -1,0 +1,26 @@
+meta {
+  name: Update
+  type: http
+  seq: 6
+}
+
+put {
+  url: http://127.0.0.1:8000/api/admin/system/database/phone_models/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "notes": "Updated description"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

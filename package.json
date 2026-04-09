@@ -6,13 +6,24 @@
   "scripts": {
     "start": "node api/src/app.js",
     "dev": "node --watch api/src/app.js",
-    "seed": "node api/src/utils/seed.js"
+    "seed": "node api/src/utils/seed.js",
+    "services": "node services/index.js",
+    "start:all": "node scripts/start-all.js",
+    "test": "node tests/run-all.js"
   },
-  "keywords": ["cisco", "asterisk", "freepbx", "ami", "sip"],
+  "keywords": [
+    "cisco",
+    "asterisk",
+    "freepbx",
+    "ami",
+    "sip"
+  ],
   "author": "Bernardo Pinto",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.8.0",
     "express": "^5.2.1",
-    "better-sqlite3": "^12.8.0"
+    "jsonwebtoken": "^9.0.3"
   }
 }

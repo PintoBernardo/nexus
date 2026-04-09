@@ -1,0 +1,20 @@
+meta {
+  name: My Devices
+  type: http
+  seq: 7
+}
+
+get {
+  url: http://127.0.0.1:8000/api/me/devices
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

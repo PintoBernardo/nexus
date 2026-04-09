@@ -1,0 +1,16 @@
+meta {
+  name: Personal Contacts (XML)
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://127.0.0.1:8001/services/directory/personal?username=admin&pin=1234
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

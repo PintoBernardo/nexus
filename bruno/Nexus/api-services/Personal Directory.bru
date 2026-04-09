@@ -1,0 +1,16 @@
+meta {
+  name: Personal Directory
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://127.0.0.1:8000/api/services/directory/personal?username=admin&pin=1234
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

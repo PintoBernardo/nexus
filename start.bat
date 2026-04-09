@@ -2,7 +2,7 @@
 title Nexus Unified Communications
 
 echo =========================================
-echo   Nexus Unified Communications - Backend
+echo   Nexus Unified Communications
 echo   Version: 1.0.0
 echo =========================================
 echo.
@@ -39,13 +39,14 @@ if not exist "nexus.db" (
     echo.
 )
 
-:: Start the server
-echo [INFO] Starting Nexus server...
-echo   API: http://localhost:8000/api
-echo   Docs: http://localhost:8000/docs
-echo   Bruno: ./bruno/
+:: Start both API and Phone Services servers
+echo [INFO] Starting Nexus API + Phone Services...
+echo   API:       http://localhost:8000/api
+echo   Services:  http://localhost:8001/services
+echo   Docs:      http://localhost:8000/docs
+echo   Bruno:     ./bruno/
 echo.
 echo Press Ctrl+C to stop.
 echo =========================================
 echo.
-call npm start
+call npm run start:all

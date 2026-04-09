@@ -4,8 +4,8 @@
  * Persistent Asterisk Manager Interface (AMI) connection service.
  *
  * Maintains a single long-lived TCP socket to the AMI server.
- * Commands are queued and sent through the socket; responses are
- * captured by a background reader thread and returned as an array.
+ * Commands are sent through the socket; responses are captured
+ * by a background reader and returned when complete.
  *
  * All connection details (host, port, username, secret) are read
  * from the database-driven config system.
@@ -31,8 +31,77 @@ const cfg = require("../config/configStore");
  */
 let socket = null;
 let connected = false;
-let responseBuffer = "";  // Accumulates partial reads from AMI
-let pendingCommand = null; // Current command waiting for response
+let buffer = "";
+let actionId = 0;                       // Unique ID for each command
+
+/** Pending response handlers keyed by ActionID
+ * Each entry: { resolve, reject, timer, messages: [] }
+ */
+const pending = new Map();
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Check if an AMI message event indicates the end of an event list.
+ * Covers all Asterisk `EventListComplete`, `CommandListComplete`,
+ * `DAHDIShowChannels` with "FullyBooted", and `StatusComplete`.
+ */
+function isComplete(message) {
+  const low = message.toLowerCase();
+  return (
+    low.includes("eventlist: complete") ||
+    low.includes("eventlist: end") ||
+    low.startsWith("event: ") && low.includes("listcomplete") ||
+    low.startsWith("event: ") && low.includes("complete")
+  );
+}
+
+/**
+ * Check if the message is a standalone response (no events follow).
+ * This is true when the message has a `Response:` line and no `EventList:` header.
+ */
+function isStandaloneResponse(message) {
+  return (
+    message.includes("Response: Success") || message.includes("Response: Error") ||
+    message.includes("Response: Follows")
+  ) && !message.includes("EventList: start");
+}
+
+// ─── socket data handler ─────────────────────────────────────────────────────
+
+function onSocketData() {
+  socket.on("data", (chunk) => {
+    buffer += chunk.toString();
+
+    // AMI messages are separated by \r\n\r\n
+    while (buffer.includes("\r\n\r\n")) {
+      const idx = buffer.indexOf("\r\n\r\n");
+      const raw = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 4);
+
+      const message = raw.trim();
+      if (!message) continue;
+
+      // Extract ActionID from the message to route the response
+      const aidMatch = message.match(/ActionID:\s*(\S+)/);
+      const aid = aidMatch ? aidMatch[1] : null;
+
+      if (aid && pending.has(aid)) {
+        const entry = pending.get(aid);
+        entry.messages.push(message);
+
+        // Determine if the response chain is complete
+        if (isComplete(message) || isStandaloneResponse(message)) {
+          clearTimeout(entry.timer);
+          entry.resolve(entry.messages);
+          pending.delete(aid);
+        }
+      }
+    }
+  });
+}
+
+// ─── connect ──────────────────────────────────────────────────────────────────
 
 /**
  * Connect to the Asterisk Manager Interface.
@@ -54,66 +123,73 @@ function connect() {
     socket = net.createConnection({ host, port }, () => {
       console.log(`[ami] Connected to AMI at ${host}:${port}`);
 
-      // Build and send AMI Login action
+      // Build and send AMI Login action with a fixed ActionID
+      const loginActionId = "nexus-login";
       const loginMsg =
         `Action: Login\r\n` +
         `Username: ${username}\r\n` +
         `Secret: ${secret}\r\n` +
         `Events: ${cfg.get("ami.events", "off")}\r\n` +
+        `ActionID: ${loginActionId}\r\n` +
         `\r\n`;
 
       socket.write(loginMsg);
 
-      // Handle AMI responses — login confirmation arrives first
-      const onLogin = (data) => {
-        if (data.includes("Response: Success") && data.includes("Message: Authentication accepted")) {
-          connected = true;
-          console.log("[ami] AMI login successful");
-          resolve();
-        } else if (data.includes("Response: Error")) {
-          disconnect();
-          reject(new Error(`AMI login failed: ${data}`));
-        } else {
-          // Not a login response yet — wait for more data
-          responseBuffer = data;
-        }
-      };
+      // Install the regular data handler (for normal commands)
+      onSocketData();
 
-      // Temporarily override the data handler for login phase
-      const onData = (chunk) => {
-        responseBuffer += chunk.toString();
+      // Also handle the login response separately since it doesn't have
+      // a pending entry — we need to resolve/reject the connect() promise.
+      const originalDataHandler = socket.listeners("data")[socket.listeners("data").length - 1];
+      socket.off("data", originalDataHandler);
 
-        // AMI messages end with \r\n\r\n
-        while (responseBuffer.includes("\r\n\r\n")) {
-          const [message, rest] = responseBuffer.split("\r\n\r\n");
-          responseBuffer = rest;
+      socket.on("data", (chunk) => {
+        buffer += chunk.toString();
 
-          // If we're still waiting for login confirmation
-          if (pendingCommand === null) {
-            if (message.includes("Response: Success") || message.includes("Response: Error")) {
-              onLogin(message);
+        // AMI messages are separated by \r\n\r\n
+        while (buffer.includes("\r\n\r\n")) {
+          const idx = buffer.indexOf("\r\n\r\n");
+          const raw = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 4);
+          const message = raw.trim();
+          if (!message) continue;
+
+          const loginAidMatch = message.match(/ActionID:\s*(\S+)/);
+          const msgAid = loginAidMatch ? loginAidMatch[1] : null;
+
+          if (msgAid === loginActionId) {
+            // Login response
+            if (message.includes("Response: Success")) {
+              connected = true;
+              console.log("[ami] AMI login successful");
+              resolve();
+            } else if (message.includes("Response: Error")) {
+              disconnect();
+              reject(new Error(`AMI login failed: ${message}`));
             }
-            return; // stop processing until next chunk
+            return;
           }
 
-          // For normal commands, check if response is complete
-          if (message.includes("Event: FullyBooted") || message.includes("Response: Success") ||
-              message.includes("Response: Error") || message.includes("Message: Authentication accepted")) {
-            handleResponse(message);
+          // Route to a pending command
+          const aidMatch2 = message.match(/ActionID:\s*(\S+)/);
+          const aid2 = aidMatch2 ? aidMatch2[1] : null;
+
+          if (aid2 && pending.has(aid2)) {
+            const entry = pending.get(aid2);
+            entry.messages.push(message);
+            if (isComplete(message) || isStandaloneResponse(message)) {
+              clearTimeout(entry.timer);
+              entry.resolve(entry.messages);
+              pending.delete(aid2);
+            }
           }
         }
-      };
-
-      socket.on("data", onData);
+      });
     });
 
     socket.on("error", (err) => {
       console.error(`[ami] Socket error: ${err.message}`);
       connected = false;
-      if (pendingCommand) {
-        pendingCommand.reject(err);
-        pendingCommand = null;
-      }
       reject(err);
     });
 
@@ -131,22 +207,7 @@ function connect() {
   });
 }
 
-/**
- * Handle a complete AMI response message.
- * If there's a pending command promise, resolve it.
- */
-function handleResponse(message) {
-  if (pendingCommand) {
-    if (!message.includes("--END COMMAND--") && message.includes("Event:")) {
-      // Multi-line response — accumulate
-      pendingCommand.messages.push(message);
-      return;
-    }
-    pendingCommand.messages.push(message);
-    pendingCommand.resolve(pendingCommand.messages);
-    pendingCommand = null;
-  }
-}
+// ─── send ─────────────────────────────────────────────────────────────────────
 
 /**
  * Send a command to AMI and wait for the response (with timeout).
@@ -154,15 +215,17 @@ function handleResponse(message) {
  * @param {Object} cmd   - Command object:
  *   { action: "CoreShowChannels" }
  *   { action: "Command", command: "core show channels" }
- * @param {number} [timeout=5] - Timeout in seconds
+ * @param {number} [timeout=15] - Timeout in seconds
  * @returns {Promise<string[]>} Array of response messages
  */
-function send(cmd, timeout = 5) {
+function send(cmd, timeout = 15) {
   return new Promise((resolve, reject) => {
     if (!connected || !socket || socket.destroyed) {
       reject(new Error("[ami] Not connected to AMI — call connect() first"));
       return;
     }
+
+    const id = `nexus-${++actionId}`;
 
     // Build the AMI action string
     let msg = `Action: ${cmd.action}\r\n`;
@@ -174,32 +237,22 @@ function send(cmd, timeout = 5) {
         msg += `${key}: ${value}\r\n`;
       }
     }
-    msg += "\r\n";
+    msg += `ActionID: ${id}\r\n\r\n`;
 
-    // Set up pending command with timeout
-    let timer = null;
-    pendingCommand = {
-      messages: [],
-      resolve: (result) => {
-        clearTimeout(timer);
-        resolve(result);
-      },
-      reject: (err) => {
-        clearTimeout(timer);
-        reject(err);
-      }
-    };
-
-    // Timeout
-    timer = setTimeout(() => {
-      pendingCommand = null;
+    // Set up pending entry with timeout
+    const timer = setTimeout(() => {
+      pending.delete(id);
       reject(new Error(`[ami] Command timed out after ${timeout}s: ${JSON.stringify(cmd)}`));
     }, timeout * 1000);
+
+    pending.set(id, { resolve, reject, timer, messages: [] });
 
     // Write to socket
     socket.write(msg);
   });
 }
+
+// ─── misc ─────────────────────────────────────────────────────────────────────
 
 /**
  * Check if we're currently connected to AMI.
@@ -209,7 +262,7 @@ function isConnected() {
 }
 
 /**
- * Disconnect from AMI (sends Logout action).
+ * Disconnect from AMI (sends Logoff action).
  */
 function disconnect() {
   if (connected && socket && !socket.destroyed) {
@@ -219,6 +272,12 @@ function disconnect() {
   if (socket) {
     socket.destroy();
     socket = null;
+  }
+  // Reject all pending commands
+  for (const [id, entry] of pending) {
+    clearTimeout(entry.timer);
+    entry.reject(new Error("[ami] Disconnected from AMI"));
+    pending.delete(id);
   }
   console.log("[ami] AMI disconnected");
 }

@@ -185,6 +185,27 @@ async function getExtensions() {
 }
 
 /**
+ * Fetch all ring groups from FreePBX.
+ * Returns array of ring group objects with their members.
+ */
+async function getRingGroups() {
+  const data = await query(`
+    query {
+      fetchAllRingGroups {
+        ringgroups {
+          id
+          description
+          groupList
+          strategy
+        }
+      }
+    }
+  `);
+
+  return data?.fetchAllRingGroups?.ringgroups ?? [];
+}
+
+/**
  * Invalidate the cached token (forces re-auth on next call).
  */
 function invalidateToken() {
@@ -194,6 +215,7 @@ function invalidateToken() {
 
 module.exports = {
   getExtensions,
+  getRingGroups,
   query,
   getToken,
   invalidateToken

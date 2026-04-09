@@ -4,7 +4,8 @@
  * Asterisk Manager Interface (AMI) endpoints.
  *
  * Lets you send AMI commands through HTTP, with the persistent
- * AMI connection managed automatically.
+ * AMI connection managed automatically. AMI text responses
+ * are automatically parsed into JSON objects.
  *
  * POST /api/ami/connect   — Connect (or reconnect) to AMI
  * POST /api/ami/command   — Send an AMI command
@@ -15,6 +16,8 @@
 const express = require("express");
 const ami = require("../../services/ami");
 const cfg = require("../../config/configStore");
+const { requiresPerm } = require("../../middleware/auth");
+const { parse, parseAll, flatten } = require("../../utils/amiParser");
 const router = express.Router();
 
 /**
@@ -32,7 +35,9 @@ router.post("/connect", async (req, res) => {
 
 /**
  * POST /api/ami/command
- * Send a command to AMI.
+ * Send a command to AMI. Raw text responses are parsed to JSON.
+ *
+ * Query: ?flatten=1  — merge all message blocks into one object
  *
  * Body:
  *   { action: "CoreShowChannels" }
@@ -41,7 +46,7 @@ router.post("/connect", async (req, res) => {
  *
  * Auto-connects to AMI first if not already connected.
  */
-router.post("/command", async (req, res) => {
+router.post("/command", requiresPerm("ami:write"), async (req, res) => {
   const cmd = req.body;
   if (!cmd || !cmd.action) {
     return res.status(400).json({ error: "Missing 'action' in request body" });
@@ -56,13 +61,20 @@ router.post("/command", async (req, res) => {
     }
   }
 
-  const timeout = cfg.getNumber("ami.timeout", 5);
+  const timeout = cfg.getNumber("ami.timeout", 15);
 
   try {
-    const messages = await ami.send(cmd, timeout);
-    res.json({ ok: true, messages });
+    const rawMessages = await ami.send(cmd, timeout);
+
+    // Auto-parse responses to JSON
+    const parsed = parseAll(rawMessages);
+    const data = req.query.flatten ? flatten(rawMessages) : parsed;
+
+    res.json({ ok: true, data });
   } catch (err) {
-    res.status(500).json({ error: "AMI command failed", detail: err.message });
+    // Check if error contains AMI Response: Error details
+    const detail = err.message;
+    res.status(500).json({ error: "AMI command failed", detail });
   }
 });
 
@@ -83,7 +95,7 @@ router.get("/status", (req, res) => {
  * POST /api/ami/disconnect
  * Disconnect from AMI.
  */
-router.post("/disconnect", (req, res) => {
+router.post("/disconnect", requiresPerm("ami:write"), (req, res) => {
   ami.disconnect();
   res.json({ ok: true, message: "Disconnected from AMI" });
 });

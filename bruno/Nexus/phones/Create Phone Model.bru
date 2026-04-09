@@ -1,0 +1,42 @@
+meta {
+  name: Create Phone Model
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://127.0.0.1:8000/api/phones
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "model": "CP-7940G",
+    "manufacturer": "Cisco",
+    "screen_resolution": "132x64",
+    "screen_size": "2.5\"",
+    "screen_color": "monochrome",
+    "num_lines": 2,
+    "num_softkeys": 4,
+    "num_line_keys": 2,
+    "expansion_module": "none",
+    "has_wifi": false,
+    "has_poe": true,
+    "has_bluetooth": false,
+    "usb_ports": 0,
+    "network_ports": 1,
+    "form_factor": "desktop",
+    "protocol": "sccp",
+    "notes": "Legacy model"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}

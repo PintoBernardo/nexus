@@ -1,0 +1,24 @@
+meta {
+  name: Revoke All User Tokens
+  type: http
+  seq: 15
+}
+
+post {
+  url: http://127.0.0.1:8000/api/admin/auth/users/:id/revoke-all-tokens
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+vars:path {
+  id: 2
+}
+
+settings {
+  encodeUrl: true
+  timeout: 5000
+}
