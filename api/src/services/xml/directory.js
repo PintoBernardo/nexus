@@ -50,9 +50,10 @@ function directory(title, prompt, entries, softkeys = []) {
  * @param {string} title
  * @param {string} prompt
  * @param {Array<{Name: string, URL: string}>} items - Menu items
+ * @param {Array<{Name: string, URL: string, Position: number}>} softkeys
  * @returns {string} XML string
  */
-function menu(title, prompt, items) {
+function menu(title, prompt, items, softkeys = []) {
   let xml = `<?xml version="1.0" encoding="utf-8"?>\n`;
   xml += `<CiscoIPPhoneMenu>\n`;
   xml += `  <Title>${esc(title)}</Title>\n`;
@@ -62,6 +63,13 @@ function menu(title, prompt, items) {
     xml += `    <Name>${esc(item.Name)}</Name>\n`;
     xml += `    <URL>${esc(item.URL)}</URL>\n`;
     xml += `  </MenuItem>\n`;
+  }
+  for (const sk of softkeys) {
+    xml += `  <SoftKeyItem>\n`;
+    xml += `    <Name>${esc(sk.Name)}</Name>\n`;
+    xml += `    <URL>${esc(sk.URL)}</URL>\n`;
+    xml += `    <Position>${sk.Position}</Position>\n`;
+    xml += `  </SoftKeyItem>\n`;
   }
   xml += `</CiscoIPPhoneMenu>`;
   return xml;

@@ -35,10 +35,10 @@ const router = express.Router();
 const xml = require("../../api/src/services/xml/directory");
 const {
   isServiceEnabled,
-  getServiceLabel,
   apiGet,
   apiPost,
   serviceBase,
+  cfg,
 } = require("../config");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,11 +59,38 @@ function xmlError(res, msg, req, username, pin) {
   );
 }
 
+/**
+ * Detect phone model from X-CiscoIPPhoneModelName header.
+ * 79xx series (e.g. CP-7941, CP-7961) get the full directory menu.
+ * 8xxx series (e.g. CP-8841, CP-8861) go directly to personal directory.
+ */
+function is79xxPhone(req) {
+  const model = req.get("X-CiscoIPPhoneModelName") || "";
+  return /^CP-79/.test(model);
+}
+
+// ─── Session State ─────────────────────────────────────────────────────────────
+// Stores authenticated credentials per session (by IP address).
+// On successful login we store the username/pin so sub-pages don't need them.
+// 8xxx phones don't resend credentials on every request — session fixes that.
+const sessions = new Map();
+
+function sessionSet(req, username, pin) {
+  const key = req.ip || "unknown";
+  sessions.set(key, { username, pin });
+}
+
+function sessionGet(req) {
+  const key = req.ip || "unknown";
+  return sessions.get(key) || { username: null, pin: null };
+}
+
 // ─── Main Menu ────────────────────────────────────────────────────────────────
 
 /**
  * GET /services/directory
- * Shows the directory main menu with personal and corporate options.
+ * 79xx: shows full directory menu (personal + corporate).
+ * 8xxx: skips menu, redirects directly to personal directory.
  */
 router.get("/", (req, res) => {
   const enabled = isServiceEnabled("directory");
@@ -73,11 +100,28 @@ router.get("/", (req, res) => {
     );
   }
 
-  const personalEnabled = isServiceEnabled("directory");
-  const corporateEnabled = isServiceEnabled("directory");
-  const personalLabel = getServiceLabel("directory", "Personal Directory");
-  const corporateLabel = "Corporate Directory";
   const b = serviceBase(req);
+
+  // 8xxx series — no menu, go straight to personal directory
+  if (!is79xxPhone(req)) {
+    const personalEnabled = cfg.getBool("directory.personal_enabled");
+    if (!personalEnabled) {
+      return res.set("Content-Type", "text/xml; charset=utf-8").send(
+        xml.text("Directory", "Personal directory is disabled.")
+      );
+    }
+    return res.set("Content-Type", "text/xml; charset=utf-8").send(
+      xml.execute([
+        { Priority: 0, URL: `${b}/directory/personal` },
+      ])
+    );
+  }
+
+  // 79xx series — show full menu
+  const personalEnabled = cfg.getBool("directory.personal_enabled");
+  const corporateEnabled = cfg.getBool("directory.corporate_enabled");
+  const personalLabel = cfg.get("directory.personal_label") || "Personal Directory";
+  const corporateLabel = cfg.get("directory.corporate_label") || "Corporate Directory";
 
   const items = [];
   if (personalEnabled)
@@ -92,7 +136,21 @@ router.get("/", (req, res) => {
   }
 
   res.set("Content-Type", "text/xml; charset=utf-8");
-  res.send(xml.menu("Directory", "Select a service", items));
+  res.send(xml.menu("Directory", "Select a service", items, [
+    { Name: "Logout", URL: `${b}/directory/logout`, Position: 1 },
+  ]));
+});
+
+router.get("/logout", (req, res) => {
+  const key = req.ip || "unknown";
+  sessions.delete(key);
+  const b = serviceBase(req);
+  return res.set("Content-Type", "text/xml; charset=utf-8").send(
+    xml.execute([
+      { Priority: 0, URL: "Status:Logged out" },
+      { Priority: 0, URL: `${b}/directory/personal` },
+    ])
+  );
 });
 
 // ─── Personal Directory ───────────────────────────────────────────────────────
@@ -108,7 +166,11 @@ router.get("/personal", (req, res) => {
     );
   }
 
-  const { username, pin } = req.query;
+  const { username: queryUser, pin: queryPin } = req.query;
+
+  // Try query params first, fall back to session (for 8xxx phones)
+  const { username, pin } = queryUser ? { username: queryUser, pin: queryPin } : sessionGet(req);
+
   if (!username || !pin) {
     const b = serviceBase(req);
     return res.set("Content-Type", "text/xml; charset=utf-8").send(
@@ -132,12 +194,15 @@ router.get("/personal", (req, res) => {
         b + "/directory/personal",
         [
           { Name: "Submit", URL: "SoftKey:Submit", Position: 1 },
-          { Name: "Exit", URL: "SoftKey:Exit", Position: 2 },
+          { Name: "<<", URL: "SoftKey:<<", Position: 2 },
+          { Name: "Exit", URL: "SoftKey:Exit", Position: 3 },
         ]
       )
     );
   }
 
+  // Store credentials in session for future requests (8xxx phones)
+  sessionSet(req, username, pin);
   fetchPersonalContacts(req, res, username, pin);
 });
 
@@ -157,18 +222,18 @@ function fetchPersonalContacts(req, res, username, pin) {
               URL: `${serviceBase(req)}/directory/personal`,
               Position: 1,
             },
-            { Name: "Exit", URL: "SoftKey:Exit", Position: 2 },
+            { Name: "<<", URL: "SoftKey:<<", Position: 2 },
+            { Name: "Exit", URL: "SoftKey:Exit", Position: 3 },
           ])
         );
       }
       if (status === 403 || status !== 200) {
+        const backUrl = is79xxPhone(req)
+          ? `${serviceBase(req)}/directory`
+          : "Init:Services";
         return res.set("Content-Type", "text/xml; charset=utf-8").send(
           xml.text("Personal Directory", body.error || "Service unavailable.", [
-            {
-              Name: "Back",
-              URL: `${serviceBase(req)}/directory`,
-              Position: 1,
-            },
+            { Name: "Back", URL: backUrl, Position: 1 },
           ])
         );
       }
@@ -207,6 +272,7 @@ function fetchPersonalContacts(req, res, username, pin) {
             URL: `${b}/directory/personal/security_menu?${qp}`,
             Position: 7,
           },
+          { Name: "Logout", URL: `${b}/directory/logout?${qp}`, Position: 8 },
         ])
       );
     })
@@ -231,7 +297,8 @@ function fetchPersonalContacts(req, res, username, pin) {
  * Shows the add contact input form.
  */
 router.get("/personal/add", (req, res) => {
-  const { username, pin } = req.query;
+  // Fall back to session credentials (8xxx phones don't resend username/pin)
+  const { username, pin } = req.query.username ? req.query : sessionGet(req);
   const b = serviceBase(req);
   res.set("Content-Type", "text/xml; charset=utf-8");
   res.send(
@@ -255,7 +322,8 @@ router.get("/personal/add", (req, res) => {
       `${b}/directory/personal/add_contact`,
       [
         { Name: "Submit", URL: "SoftKey:Submit", Position: 1 },
-        { Name: "Exit", URL: "SoftKey:Exit", Position: 2 },
+        { Name: "<<", URL: "SoftKey:<<", Position: 2 },
+        { Name: "Exit", URL: "SoftKey:Exit", Position: 3 },
       ]
     )
   );
@@ -266,7 +334,9 @@ router.get("/personal/add", (req, res) => {
  * Submits the add contact form to the JSON API.
  */
 router.get("/personal/add_contact", (req, res) => {
-  const { username, pin, name, number } = req.query;
+  // Fall back to session credentials (8xxx phones don't resend username/pin)
+  const { username: qUser, pin: qPin, name, number } = req.query;
+  const { username, pin } = qUser ? { username: qUser, pin: qPin } : sessionGet(req);
   if (!username || !pin || !name || !number) {
     return xmlError(res, "Missing data", req, username, pin);
   }
@@ -301,7 +371,7 @@ router.get("/personal/add_contact", (req, res) => {
  * Lists contacts to select one for editing.
  */
 router.get("/personal/select_edit", (req, res) => {
-  const { username, pin } = req.query;
+  const { username, pin } = req.query.username ? req.query : sessionGet(req);
   const b = serviceBase(req);
   apiGet(
     `/api/services/directory/personal?username=${encodeURIComponent(username)}&pin=${encodeURIComponent(pin)}`
@@ -328,7 +398,7 @@ router.get("/personal/select_edit", (req, res) => {
  * Shows the edit form for a selected contact.
  */
 router.get("/personal/edit_form", (req, res) => {
-  const { username, pin, idx } = req.query;
+  const { username, pin, idx } = req.query.username ? req.query : sessionGet(req);
   apiGet(
     `/api/services/directory/personal?username=${encodeURIComponent(username)}&pin=${encodeURIComponent(pin)}`
   )
@@ -362,7 +432,8 @@ router.get("/personal/edit_form", (req, res) => {
           `${serviceBase(req)}/directory/personal/update_contact?username=${username}&pin=${pin}&idx=${i}`,
           [
             { Name: "Submit", URL: "SoftKey:Submit", Position: 1 },
-            { Name: "Exit", URL: "SoftKey:Exit", Position: 2 },
+            { Name: "<<", URL: "SoftKey:<<", Position: 2 },
+            { Name: "Exit", URL: "SoftKey:Exit", Position: 3 },
           ]
         )
       );
@@ -375,7 +446,7 @@ router.get("/personal/edit_form", (req, res) => {
  * Submits the edit contact form to the JSON API.
  */
 router.get("/personal/update_contact", (req, res) => {
-  const { username, pin, idx, name, number } = req.query;
+  const { username, pin, idx, name, number } = req.query.username ? req.query : sessionGet(req);
   if (!username || !pin || idx === undefined || !name || !number) {
     return xmlError(res, "Missing data", req, username, pin);
   }
@@ -411,7 +482,7 @@ router.get("/personal/update_contact", (req, res) => {
  * Lists contacts to select one for deletion.
  */
 router.get("/personal/select_delete", (req, res) => {
-  const { username, pin } = req.query;
+  const { username, pin } = req.query.username ? req.query : sessionGet(req);
   const b = serviceBase(req);
   apiGet(
     `/api/services/directory/personal?username=${encodeURIComponent(username)}&pin=${encodeURIComponent(pin)}`
@@ -438,7 +509,7 @@ router.get("/personal/select_delete", (req, res) => {
  * Submits the delete action to the JSON API.
  */
 router.get("/personal/delete_contact", (req, res) => {
-  const { username, pin, idx } = req.query;
+  const { username, pin, idx } = req.query.username ? req.query : sessionGet(req);
   if (!username || !pin || idx === undefined) {
     return xmlError(res, "Missing data", req, username, pin);
   }
@@ -472,7 +543,7 @@ router.get("/personal/delete_contact", (req, res) => {
  * Lists contacts to select one for reordering.
  */
 router.get("/personal/reorder_menu", (req, res) => {
-  const { username, pin } = req.query;
+  const { username, pin } = req.query.username ? req.query : sessionGet(req);
   const b = serviceBase(req);
   apiGet(
     `/api/services/directory/personal?username=${encodeURIComponent(username)}&pin=${encodeURIComponent(pin)}`
@@ -499,7 +570,7 @@ router.get("/personal/reorder_menu", (req, res) => {
  * Shows available positions to move the selected contact to.
  */
 router.get("/personal/reorder_select", (req, res) => {
-  const { username, pin, idx } = req.query;
+  const { username, pin, idx } = req.query.username ? req.query : sessionGet(req);
   apiGet(
     `/api/services/directory/personal?username=${encodeURIComponent(username)}&pin=${encodeURIComponent(pin)}`
   )
@@ -531,7 +602,7 @@ router.get("/personal/reorder_select", (req, res) => {
  * Submits the move action to the JSON API.
  */
 router.get("/personal/reorder_move", (req, res) => {
-  const { username, pin, idx, newIdx } = req.query;
+  const { username, pin, idx, newIdx } = req.query.username ? req.query : sessionGet(req);
   if (!username || !pin || idx === undefined || newIdx === undefined) {
     return xmlError(res, "Missing data", req, username, pin);
   }
@@ -569,7 +640,7 @@ router.get("/personal/reorder_move", (req, res) => {
  * Shows PIN security options (enable, change, disable).
  */
 router.get("/personal/security_menu", (req, res) => {
-  const { username, pin } = req.query;
+  const { username, pin } = req.query.username ? req.query : sessionGet(req);
   const b = serviceBase(req);
   apiGet(
     `/api/services/directory/personal/security?username=${encodeURIComponent(username)}&pin=${encodeURIComponent(pin)}`
@@ -589,7 +660,7 @@ router.get("/personal/security_menu", (req, res) => {
         });
       } else {
         items.push({
-          Name: "Enable PIN",
+          Name: "Change PIN",
           URL: `${b}/directory/personal/pin_change_form?username=${username}&pin=${pin}`,
         });
       }
@@ -605,16 +676,22 @@ router.get("/personal/security_menu", (req, res) => {
 
 /**
  * GET /services/directory/personal/pin_change_form
- * Shows the change PIN input form.
+ * Shows the change PIN input form (includes current PIN).
  */
 router.get("/personal/pin_change_form", (req, res) => {
-  const { username, pin } = req.query;
+  const { username, pin } = req.query.username ? req.query : sessionGet(req);
   res.set("Content-Type", "text/xml; charset=utf-8");
   res.send(
     xml.input(
       "Change PIN",
-      "Enter new PIN (4-8 digits)",
+      "Enter PIN details",
       [
+        {
+          DisplayName: "Current PIN",
+          QueryStringParam: "pin",
+          InputFlags: "T",
+          DefaultValue: pin || "",
+        },
         {
           DisplayName: "New PIN",
           QueryStringParam: "new_pin",
@@ -628,10 +705,11 @@ router.get("/personal/pin_change_form", (req, res) => {
           DefaultValue: "",
         },
       ],
-      `${serviceBase(req)}/directory/personal/pin_change_submit`,
+      `${serviceBase(req)}/directory/personal/pin_change_submit?username=${encodeURIComponent(username)}&pin=${encodeURIComponent(pin)}`,
       [
         { Name: "Submit", URL: "SoftKey:Submit", Position: 1 },
-        { Name: "Exit", URL: "SoftKey:Exit", Position: 2 },
+        { Name: "<<", URL: "SoftKey:<<", Position: 2 },
+        { Name: "Exit", URL: "SoftKey:Exit", Position: 3 },
       ]
     )
   );
@@ -642,7 +720,7 @@ router.get("/personal/pin_change_form", (req, res) => {
  * Submits the PIN change to the JSON API.
  */
 router.get("/personal/pin_change_submit", (req, res) => {
-  const { username, pin, new_pin, confirm } = req.query;
+  const { username, pin, new_pin, confirm } = req.query.username ? req.query : sessionGet(req);
   if (!username || !pin || !new_pin || !confirm) {
     return xmlError(res, "Missing fields", req, username, pin);
   }
@@ -675,7 +753,7 @@ router.get("/personal/pin_change_submit", (req, res) => {
  * Shows the disable PIN confirmation form.
  */
 router.get("/personal/pin_disable_form", (req, res) => {
-  const { username, pin } = req.query;
+  const { username, pin } = req.query.username ? req.query : sessionGet(req);
   res.set("Content-Type", "text/xml; charset=utf-8");
   res.send(
     xml.input(
@@ -692,7 +770,8 @@ router.get("/personal/pin_disable_form", (req, res) => {
       `${serviceBase(req)}/directory/personal/pin_disable_submit`,
       [
         { Name: "Submit", URL: "SoftKey:Submit", Position: 1 },
-        { Name: "Exit", URL: "SoftKey:Exit", Position: 2 },
+        { Name: "<<", URL: "SoftKey:<<", Position: 2 },
+        { Name: "Exit", URL: "SoftKey:Exit", Position: 3 },
       ]
     )
   );
@@ -703,7 +782,7 @@ router.get("/personal/pin_disable_form", (req, res) => {
  * Submits the PIN disable to the JSON API.
  */
 router.get("/personal/pin_disable_submit", (req, res) => {
-  const { username, pin } = req.query;
+  const { username, pin } = req.query.username ? req.query : sessionGet(req);
   if (!username || !pin) {
     return xmlError(res, "Missing PIN", req, username, pin);
   }
@@ -773,34 +852,42 @@ router.get("/corporate", (req, res) => {
         b + "/directory/corporate",
         [
           { Name: "Search", URL: "SoftKey:Submit", Position: 1 },
-          { Name: "Exit", URL: "SoftKey:Exit", Position: 2 },
+          { Name: "<<", URL: "SoftKey:<<", Position: 2 },
+          { Name: "Exit", URL: "SoftKey:Exit", Position: 3 },
         ]
       )
     );
   }
 
-  const query = new URLSearchParams({ firstname, lastname, number }).toString();
+  const params = {};
+  if (firstname) params.firstname = firstname;
+  if (lastname) params.lastname = lastname;
+  if (number) params.number = number;
+  const query = new URLSearchParams(params).toString();
   apiGet(`/api/services/directory/corporate?${query}`)
     .then(({ status, body }) => {
+      const backUrl = is79xxPhone(req)
+        ? `${serviceBase(req)}/directory`
+        : "Init:Services";
       if (status === 403) {
         return res.set("Content-Type", "text/xml; charset=utf-8").send(
-          xml.text("Corporate Directory", body.error || "Service disabled.", [
-            {
-              Name: "Back",
-              URL: `${serviceBase(req)}/directory`,
-              Position: 1,
-            },
+          xml.text("Corporate Directory", body?.error || "Service disabled.", [
+            { Name: "Back", URL: backUrl, Position: 1 },
           ])
         );
       }
       if (status !== 200) {
         return res.set("Content-Type", "text/xml; charset=utf-8").send(
-          xml.text("Error", body.error || body.detail || "Failed to fetch", [
-            {
-              Name: "Back",
-              URL: `${serviceBase(req)}/directory`,
-              Position: 1,
-            },
+          xml.text("Error", body?.error || body?.detail || "Failed to fetch", [
+            { Name: "Back", URL: backUrl, Position: 1 },
+          ])
+        );
+      }
+
+      if (!body || !body.entries) {
+        return res.set("Content-Type", "text/xml; charset=utf-8").send(
+          xml.text("Corporate Directory", "No results found", [
+            { Name: "Back", URL: backUrl, Position: 1 },
           ])
         );
       }
@@ -820,14 +907,13 @@ router.get("/corporate", (req, res) => {
       );
     })
     .catch((err) => {
+      const backUrl = is79xxPhone(req)
+        ? `${serviceBase(req)}/directory`
+        : "Init:Services";
       res.set("Content-Type", "text/xml; charset=utf-8");
       res.send(
         xml.text("Error", `API error: ${err.message}`, [
-          {
-            Name: "Back",
-            URL: `${serviceBase(req)}/directory`,
-            Position: 1,
-          },
+          { Name: "Back", URL: backUrl, Position: 1 },
         ])
       );
     });

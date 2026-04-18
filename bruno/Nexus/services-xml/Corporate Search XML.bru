@@ -1,0 +1,16 @@
+meta {
+  name: Corporate Search
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://127.0.0.1:8001/services/directory/corporate?firstname=st
+  body: none
+  auth: none
+}
+
+settings {
+  encodeUrl: true
+  timeout: 15000
+}

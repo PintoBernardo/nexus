@@ -6,9 +6,11 @@
 
 const express = require("express");
 const path = require("path");
+const readline = require("readline");
 const cfg = require("./config/configStore");
 const db = require("./config/db");
 const { requiresPerm } = require("./middleware/auth");
+const syncService = require("./services/sync");
 
 const app = express();
 
@@ -59,7 +61,7 @@ app.use("/api/services/status", requiresPerm("services:read"), servicesStatusRou
 
 // Directory Service — PIN-based auth (no JWT)
 const servicesDirRouter = require("./routers/services/directory");
-app.use("/api/services/directory", requiresPerm("services:read"), servicesDirRouter);
+app.use("/api/services/directory", servicesDirRouter);
 
 // Extensions
 const extensionsRouter = require("./routers/extensions/index");
@@ -113,16 +115,90 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: "Internal server error", message: err.message });
 });
 
+async function promptInitialSync() {
+  const freepbxEnabled = cfg.getBool("freepbx.enabled");
+  if (!freepbxEnabled) {
+    syncService.startPeriodicSync();
+    return;
+  }
+
+  const promptOnStartup = cfg.getBool("sync.prompt_on_startup");
+  const extDefault = cfg.get("sync.default.extensions", "no");
+  const rgDefault = cfg.get("sync.default.ringgroups", "no");
+
+  if (!promptOnStartup) {
+    console.log(`[sync] Using default sync mode: extensions=${extDefault}, ringgroups=${rgDefault}`);
+    if (extDefault !== "no" || rgDefault !== "no") {
+      try {
+        const results = await syncService.runSync(extDefault, rgDefault);
+        console.log("[sync] Initial sync completed:", JSON.stringify(results));
+      } catch (err) {
+        console.error("[sync] Initial sync failed:", err.message);
+      }
+    }
+    syncService.startPeriodicSync();
+    return;
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  const question = (text) => new Promise((resolve) => rl.question(text, resolve));
+  const timeout = (ms, defVal) => new Promise((resolve) => setTimeout(() => resolve(defVal), ms));
+
+  console.log("\n=========================================");
+  console.log("  FreePBX Sync Setup");
+  console.log("=========================================");
+  console.log("Options: yes, yes_add_only, no, yes_delete_only");
+  console.log("(will use config default if no input after 10s)");
+  console.log("");
+
+  const extPromise = question(`Extensions sync mode [${extDefault}]: `);
+  const extResult = await Promise.race([extPromise, timeout(10000, extDefault)]);
+  const extMode = extResult?.trim() || extDefault;
+
+  const rgPromise = question(`Ring groups sync mode [${rgDefault}]: `);
+  const rgResult = await Promise.race([rgPromise, timeout(10000, rgDefault)]);
+  const rgMode = rgResult?.trim() || rgDefault;
+
+  rl.close();
+
+  cfg.set("sync.default.extensions", extMode, "sync", "Default extension sync mode");
+  cfg.set("sync.default.ringgroups", rgMode, "sync", "Default ringgroup sync mode");
+
+  if (extMode !== "no" || rgMode !== "no") {
+    console.log(`\nSyncing with: extensions=${extMode}, ringgroups=${rgMode}`);
+    try {
+      const results = await syncService.runSync(extMode, rgMode);
+      console.log("[sync] Initial sync completed:", JSON.stringify(results));
+    } catch (err) {
+      console.error("[sync] Initial sync failed:", err.message);
+    }
+  } else {
+    console.log("\nNo sync configured (mode: no)");
+  }
+
+  syncService.startPeriodicSync();
+}
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 const HOST = cfg.get("server.host", "0.0.0.0");
 const PORT = cfg.getNumber("server.port", 8000);
 
-app.listen(PORT, HOST, () => {
+app.listen(PORT, HOST, async () => {
   console.log("=========================================");
   console.log("  Nexus Unified Communications | Backend");
   console.log("  Version: 1.0.0");
   console.log(`  Server: http://${HOST}:${PORT}`);
   console.log("=========================================");
+
+  if (process.env.NEXUS_SKIP_INITIAL_SYNC === "true") {
+    syncService.startPeriodicSync();
+  } else {
+    promptInitialSync();
+  }
 });
 
 module.exports = app;

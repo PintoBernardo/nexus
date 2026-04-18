@@ -336,6 +336,22 @@ function getTableSchema(table) {
   return db.prepare(`PRAGMA table_info(${table})`).all();
 }
 
+// ── Migration 13: extensions first_name/last_name ─────────────────────────────
+function migrateExtensionsNames() {
+  const schema = getTableSchema("extensions");
+  const cols = schema.map(c => c.name);
+  
+  if (!cols.includes("first_name")) {
+    db.exec("ALTER TABLE extensions ADD COLUMN first_name TEXT DEFAULT ''");
+    console.log("[db] Migration 13: added 'first_name' to extensions");
+  }
+  if (!cols.includes("last_name")) {
+    db.exec("ALTER TABLE extensions ADD COLUMN last_name TEXT DEFAULT ''");
+    console.log("[db] Migration 13: added 'last_name' to extensions");
+  }
+}
+migrateExtensionsNames();
+
 module.exports = db;
 module.exports.getTables = getTables;
 module.exports.getTableSchema = getTableSchema;

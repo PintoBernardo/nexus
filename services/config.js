@@ -6,7 +6,7 @@
  * Provides:
  *   - Database connection (read-only to nexus.db)
  *   - API client functions (apiGet, apiPost) to talk to the JSON backend
- *   - Service enable/disable checks via services_status table
+ *   - Service enable/disable checks via config table
  *   - URL base helper for building service URLs
  */
 
@@ -19,6 +19,30 @@ const Database = require("better-sqlite3");
 const DB_PATH = path.join(__dirname, "..", "nexus.db");
 const db = new Database(DB_PATH, { readonly: true });
 db.pragma("journal_mode = WAL");
+
+// Prepare statements for config
+const cfgGet = db.prepare('SELECT value FROM "configs" WHERE "key" = ?');
+
+// Simple config getter for services
+function getConfig(key, fallback) {
+  try {
+    const row = cfgGet.get(key);
+    return row ? row.value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getConfigBool(key, fallback) {
+  const val = getConfig(key, fallback);
+  return ["1", "true", "yes", "on"].includes(String(val).toLowerCase());
+}
+
+// Export config helper
+const cfg = {
+  get: getConfig,
+  getBool: getConfigBool,
+};
 
 // ─── API Client ───────────────────────────────────────────────────────────────
 
@@ -86,34 +110,33 @@ function apiPost(urlPath, body) {
 
 // ─── Service Status Helpers ───────────────────────────────────────────────────
 
+const BOOL_TRUE = ["1", "true", "yes", "on"];
+
 /**
- * Check if a service is enabled by reading the services_status table.
+ * Check if a service is enabled by reading the config table.
  * @param {string} name - Service name (e.g. "directory")
  * @returns {boolean}
  */
 function isServiceEnabled(name) {
   try {
-    const row = db
-      .prepare("SELECT enabled FROM services_status WHERE name = ?")
-      .get(name);
-    return row ? row.enabled === 1 : false;
+    const row = cfgGet.get(`${name}.enabled`);
+    if (!row) return false;
+    return BOOL_TRUE.includes(row.value.toLowerCase());
   } catch {
     return false;
   }
 }
 
 /**
- * Get a service's display label from the services_status table.
+ * Get a service's display label from the config table.
  * @param {string} name - Service name
  * @param {string} fallback - Default label if not found
  * @returns {string}
  */
 function getServiceLabel(name, fallback) {
   try {
-    const row = db
-      .prepare("SELECT label FROM services_status WHERE name = ?")
-      .get(name);
-    return row ? row.label : fallback;
+    const row = cfgGet.get(`${name}.label`);
+    return row ? row.value : fallback;
   } catch {
     return fallback;
   }
@@ -140,4 +163,5 @@ module.exports = {
   isServiceEnabled,
   getServiceLabel,
   serviceBase,
+  cfg,
 };

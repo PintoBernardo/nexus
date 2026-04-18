@@ -18,9 +18,8 @@
  * Phones hit these URLs directly. The server calls the JSON API
  * at /api/services/* for data.
  *
- * Service enable/disable is controlled by the services_status DB table.
- * The backend reads this table and the frontend requests /api/services/status
- * to know what to display.
+ * Service enable/disable is controlled by the config table.
+ * The backend reads config to know what to display.
  *
  * Run standalone:  npm run services
  * Run with API:    npm run start:all

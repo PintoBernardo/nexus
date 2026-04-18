@@ -32,6 +32,22 @@ seedConfig("freepbx.api_url", "http://127.0.0.1", "freepbx", "FreePBX API base U
 seedConfig("freepbx.client_id", "client_id", "freepbx", "FreePBX OAuth client ID", "secret");
 seedConfig("freepbx.client_secret", "client_secret", "freepbx", "FreePBX OAuth client secret", "secret");
 
+// ── Sync Settings ───────────────────────────────────────────────────────────
+seedConfig("sync.default.extensions", "no", "sync", "Default extension sync mode");
+seedConfig("sync.default.ringgroups", "no", "sync", "Default ringgroup sync mode");
+seedConfig("sync.auto.enabled", "false", "sync", "Enable auto-sync", "boolean");
+seedConfig("sync.auto.interval", "60", "sync", "Auto-sync interval in minutes", "number");
+seedConfig("sync.auto.selections_before", "0", "sync", "Auto-sync after N sync tool selections (0=disabled)", "number");
+seedConfig("sync.prompt_on_startup", "true", "sync", "Prompt for sync mode on startup", "boolean");
+
+// ── Directory Service ─────────────────────────────────────────────────────────
+seedConfig("directory.enabled", "true", "directory", "Enable directory service", "boolean");
+seedConfig("directory.personal_enabled", "true", "directory", "Enable personal directory", "boolean");
+seedConfig("directory.corporate_enabled", "true", "directory", "Enable corporate directory", "boolean");
+seedConfig("directory.personal_label", "Personal Directory", "directory", "Personal directory label");
+seedConfig("directory.corporate_label", "Corporate Directory", "directory", "Corporate directory label");
+seedConfig("directory.corporate_include_ringgroups", "false", "directory", "Include ringgroups in corporate search", "boolean");
+
 // ── AMI ─────────────────────────────────────────────────────────────────────
 seedConfig("ami.enabled", "true", "ami", "Enable AMI integration", "boolean");
 seedConfig("ami.host", "127.0.0.1", "ami", "AMI server host");
@@ -85,6 +101,7 @@ perm.run("manager", "roles:write");
 perm.run("manager", "health:read");
 perm.run("manager", "services:read");
 perm.run("manager", "services:write");
+perm.run("manager", "sync:write");
 
 // operator
 perm.run("operator", "users:read");
@@ -99,10 +116,12 @@ perm.run("operator", "ami:write");
 perm.run("operator", "roles:read");
 perm.run("operator", "health:read");
 perm.run("operator", "services:read");
+perm.run("operator", "sync:write");
 
 // user
 perm.run("user", "services:read");
 perm.run("user", "extensions:read");
+perm.run("user", "sync:write");
 console.log("[seed] Permissions created (skipped if exist)");
 
 // ── Default admin user ──────────────────────────────────────────────────────
